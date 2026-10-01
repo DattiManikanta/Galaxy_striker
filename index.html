@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Galaxy Striker 3D - Sci-Fi Space Arcade Shooter</title>
+  <meta name="description" content="Galaxy Striker 3D is a high-octane 3D space arcade shooter featuring customizable starfighters, weapon upgrades, homing missiles, dynamic lighting, and colossal boss fights.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- Three.js with offline local fallback -->
+  <script src="./lib/three.min.js"></script>
+  <script>
+    if (typeof THREE === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+    }
+  </script>
+</head>
+<body>
+  <!-- 3D Canvas Container -->
+  <div id="canvas-container"></div>
+
+  <!-- Scanlines & Vignette FX Overlay -->
+  <div class="screen-fx" id="screen-fx"></div>
+
+  <!-- Damage / Alert Flash Overlay -->
+  <div id="damage-flash" class="damage-flash"></div>
+
+  <!-- Floating 3D Combat Text Container -->
+  <div id="floating-text-container"></div>
+
+  <!-- HUD IN-GAME OVERLAY -->
+  <div id="hud-overlay" class="hud-overlay hidden">
+    <!-- Top Bar -->
+    <header class="hud-top-bar">
+      <div class="hud-stat-box score-box">
+        <span class="hud-label">SCORE</span>
+        <span class="hud-value glowing-cyan" id="hud-score">000,000</span>
+        <span class="hud-multiplier" id="hud-multiplier">x1</span>
+      </div>
+
+      <div class="hud-stat-box wave-box">
+        <span class="hud-label">SECTOR OBJECTIVE</span>
+        <span class="hud-value glowing-gold" id="hud-wave-title">WAVE 1 // PATROL</span>
+      </div>
+
+      <div class="hud-stat-box scrap-box">
+        <span class="hud-label">SCRAP SALVAGE</span>
+        <div class="scrap-display">
+          <svg class="scrap-icon" viewBox="0 0 24 24"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/></svg>
+          <span class="hud-value glowing-green" id="hud-scrap">0</span>
+        </div>
+      </div>
+
+      <div class="hud-actions">
+        <button id="btn-toggle-sound" class="hud-btn" title="Toggle Audio (M)">
+          <span id="sound-icon">🔊</span>
+        </button>
+        <button id="btn-pause" class="hud-btn" title="Pause Game (P/ESC)">
+          <span>⏸</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Boss Health Bar (Hidden until boss arrives) -->
+    <div id="boss-hud" class="boss-hud hidden">
+      <div class="boss-header">
+        <span class="boss-warning-blink">⚠️ WARNING: CAPITAL THREAT DETECTED</span>
+        <span class="boss-name" id="boss-name">APEX DREADNOUGHT</span>
+        <span class="boss-phase-badge" id="boss-phase">PHASE 1</span>
+      </div>
+      <div class="boss-bar-wrap">
+        <div class="boss-bar-fill" id="boss-bar-fill" style="width: 100%;"></div>
+      </div>
+    </div>
+
+    <!-- Center Wave Banner Announcement -->
+    <div id="wave-banner" class="wave-banner hidden">
+      <h2 id="wave-banner-title">WAVE 01 INCOMING</h2>
+      <p id="wave-banner-sub">HOSTILE FLEET DETECTED - ENGAGE AT WILL</p>
+    </div>
+
+    <!-- Bottom Gauges -->
+    <footer class="hud-bottom-bar">
+      <!-- Player Ship Integrity Status (Left) -->
+      <div class="hud-gauges ship-gauges">
+        <div class="gauge-card">
+          <div class="gauge-label-row">
+            <span>SHIELDS</span>
+            <span id="shield-val-text">100%</span>
+          </div>
+          <div class="gauge-track">
+            <div id="shield-bar" class="gauge-fill shield-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <div class="gauge-card">
+          <div class="gauge-label-row">
+            <span>HULL INTEGRITY</span>
+            <span id="hull-val-text">100%</span>
+          </div>
+          <div class="gauge-track">
+            <div id="hull-bar" class="gauge-fill hull-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <div class="gauge-card">
+          <div class="gauge-label-row">
+            <span>BOOST THRUSTERS</span>
+            <span id="boost-val-text">READY</span>
+          </div>
+          <div class="gauge-track">
+            <div id="boost-bar" class="gauge-fill boost-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Weapons & Ordnance Status (Right) -->
+      <div class="hud-gauges weapon-gauges">
+        <div class="weapon-card">
+          <div class="weapon-info">
+            <span class="hud-sublabel">PRIMARY BLASTER</span>
+            <span class="weapon-name glowing-cyan" id="primary-weapon-name">PULSE LASER MK-I</span>
+          </div>
+          <div class="weapon-level" id="weapon-level-badges">
+            <span class="lvl-dot active"></span>
+            <span class="lvl-dot"></span>
+            <span class="lvl-dot"></span>
+            <span class="lvl-dot"></span>
+            <span class="lvl-dot"></span>
+          </div>
+        </div>
+
+        <div class="ordnance-row">
+          <div class="ordnance-box" id="missile-box">
+            <span class="ordnance-key">[F]</span>
+            <span class="ordnance-title">MISSILES</span>
+            <span class="ordnance-count" id="missile-count">6 / 6</span>
+          </div>
+
+          <div class="ordnance-box" id="bomb-box">
+            <span class="ordnance-key">[SPACE / Q]</span>
+            <span class="ordnance-title">NOVA BOMB</span>
+            <span class="ordnance-count glowing-gold" id="bomb-status">READY</span>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Mobile Touch Controls Overlay (Auto-detected on touch devices) -->
+    <div id="touch-controls" class="touch-controls">
+      <div class="touch-joystick-zone" id="joystick-zone">
+        <div class="touch-stick-base">
+          <div class="touch-stick-nub" id="joystick-nub"></div>
+        </div>
+      </div>
+      <div class="touch-action-buttons">
+        <button id="touch-boost-btn" class="touch-btn boost-btn">BOOST</button>
+        <button id="touch-bomb-btn" class="touch-btn bomb-btn">BOMB</button>
+        <button id="touch-fire-btn" class="touch-btn fire-btn">FIRE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== SCREENS ==================== -->
+
+  <!-- 1. MAIN MENU SCREEN -->
+  <section id="screen-main-menu" class="screen-overlay active">
+    <div class="menu-hero">
+      <div class="game-badge">NEXT-GEN 3D BROWSER ARCADE</div>
+      <h1 class="game-title">GALAXY STRIKER <span>3D</span></h1>
+      <p class="game-subtitle">DEFEND DEEP SECTOR 7 AGAINST THE VOID ARMADA</p>
+    </div>
+
+    <div class="menu-actions">
+      <button id="btn-play-game" class="btn-cyber btn-primary">
+        <span class="btn-glitch"></span>
+        <span class="btn-text">🚀 LAUNCH MISSION</span>
+      </button>
+
+      <button id="btn-open-hangar" class="btn-cyber btn-secondary">
+        <span class="btn-text">🛠️ HANGAR & UPGRADES</span>
+      </button>
+
+      <button id="btn-open-controls" class="btn-cyber btn-tertiary">
+        <span class="btn-text">🎮 CONTROLS & MANUAL</span>
+      </button>
+
+      <button id="btn-open-settings" class="btn-cyber btn-ghost">
+        <span class="btn-text">⚙️ SETTINGS</span>
+      </button>
+    </div>
+
+    <div class="menu-footer">
+      <div class="high-score-pill">
+        <span>ALL-TIME RECORD:</span>
+        <strong id="menu-high-score">000,000 PTS</strong>
+      </div>
+      <div class="bank-pill">
+        <span>SCRAP BANK:</span>
+        <strong id="menu-scrap-bank">0 ⚙️</strong>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. HANGAR & UPGRADE SCREEN -->
+  <section id="screen-hangar" class="screen-overlay hidden">
+    <div class="hangar-container">
+      <header class="hangar-header">
+        <div>
+          <h2 class="section-title">FLEET DRY-DOCK // STARFIGHTER UPGRADES</h2>
+          <p class="section-desc">Spend recovered scrap metal to augment your ship systems</p>
+        </div>
+        <div class="hangar-scrap-badge">
+          <span>AVAILABLE SCRAP:</span>
+          <span class="scrap-count glowing-green" id="hangar-scrap-val">0</span>
+        </div>
+      </header>
+
+      <div class="hangar-content-grid">
+        <!-- Left: 3D Ship Customizer & Skins -->
+        <div class="hangar-preview-panel">
+          <div class="preview-3d-hint">DRAG TO ROTATE SHIP IN 3D</div>
+          <div class="hangar-ship-specs">
+            <h3>CURRENT FIGHTER STATS</h3>
+            <div class="spec-row">
+              <span>HULL HEALTH:</span>
+              <strong id="spec-hp">100 HP</strong>
+            </div>
+            <div class="spec-row">
+              <span>SHIELD CAPACITY:</span>
+              <strong id="spec-shield">100 SP</strong>
+            </div>
+            <div class="spec-row">
+              <span>FIREPOWER:</span>
+              <strong id="spec-dps">TIER I</strong>
+            </div>
+            <div class="spec-row">
+              <span>MISSILE PAYLOAD:</span>
+              <strong id="spec-missiles">4 TUBES</strong>
+            </div>
+          </div>
+
+          <div class="skin-selector">
+            <span class="skin-label">HULL COLOR MATRIX:</span>
+            <div class="skin-buttons">
+              <button class="skin-btn active" data-color="#00f3ff" style="--c: #00f3ff" title="Cyan Neon"></button>
+              <button class="skin-btn" data-color="#ffb703" style="--c: #ffb703" title="Solar Gold"></button>
+              <button class="skin-btn" data-color="#ff0055" style="--c: #ff0055" title="Crimson Blade"></button>
+              <button class="skin-btn" data-color="#00ff66" style="--c: #00ff66" title="Emerald Phantom"></button>
+              <button class="skin-btn" data-color="#9d4edd" style="--c: #9d4edd" title="Void Amethyst"></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Upgrade Branches Cards -->
+        <div class="hangar-upgrades-list">
+          <!-- 1. Blasters -->
+          <div class="upgrade-card" data-tree="blaster">
+            <div class="up-card-icon">⚡</div>
+            <div class="up-card-info">
+              <div class="up-card-header">
+                <h4>PLASMA CANNONS</h4>
+                <span class="up-card-level" id="up-lvl-blaster">LVL 1 / 5</span>
+              </div>
+              <p id="up-desc-blaster">Twin pulse lasers with high precision targeting.</p>
+              <div class="up-progress-bar"><div class="up-bar-fill" id="up-fill-blaster" style="width: 20%;"></div></div>
+            </div>
+            <button class="btn-upgrade" id="btn-up-blaster" data-tree="blaster">
+              <span class="cost-text" id="up-cost-blaster">150 SCRAP</span>
+              <span class="action-text">UPGRADE</span>
+            </button>
+          </div>
+
+          <!-- 2. Shields -->
+          <div class="upgrade-card" data-tree="shield">
+            <div class="up-card-icon">🛡️</div>
+            <div class="up-card-info">
+              <div class="up-card-header">
+                <h4>DEFLECTOR SHIELDS</h4>
+                <span class="up-card-level" id="up-lvl-shield">LVL 1 / 5</span>
+              </div>
+              <p id="up-desc-shield">Reinforced energy barrier with fast recharge capacitors.</p>
+              <div class="up-progress-bar"><div class="up-bar-fill" id="up-fill-shield" style="width: 20%;"></div></div>
+            </div>
+            <button class="btn-upgrade" id="btn-up-shield" data-tree="shield">
+              <span class="cost-text" id="up-cost-shield">120 SCRAP</span>
+              <span class="action-text">UPGRADE</span>
+            </button>
+          </div>
+
+          <!-- 3. Hull Armor -->
+          <div class="upgrade-card" data-tree="hull">
+            <div class="up-card-icon">🦾</div>
+            <div class="up-card-info">
+              <div class="up-card-header">
+                <h4>TITANIUM COMPOSITE HULL</h4>
+                <span class="up-card-level" id="up-lvl-hull">LVL 1 / 5</span>
+              </div>
+              <p id="up-desc-hull">High-tensile armor plating with nanite repair systems.</p>
+              <div class="up-progress-bar"><div class="up-bar-fill" id="up-fill-hull" style="width: 20%;"></div></div>
+            </div>
+            <button class="btn-upgrade" id="btn-up-hull" data-tree="hull">
+              <span class="cost-text" id="up-cost-hull">100 SCRAP</span>
+              <span class="action-text">UPGRADE</span>
+            </button>
+          </div>
+
+          <!-- 4. Homing Missiles -->
+          <div class="upgrade-card" data-tree="missile">
+            <div class="up-card-icon">🚀</div>
+            <div class="up-card-info">
+              <div class="up-card-header">
+                <h4>HOMING MICRO-MISSILES</h4>
+                <span class="up-card-level" id="up-lvl-missile">LVL 1 / 5</span>
+              </div>
+              <p id="up-desc-missile">Autonomous tracking swarm missiles for elite targets.</p>
+              <div class="up-progress-bar"><div class="up-bar-fill" id="up-fill-missile" style="width: 20%;"></div></div>
+            </div>
+            <button class="btn-upgrade" id="btn-up-missile" data-tree="missile">
+              <span class="cost-text" id="up-cost-missile">180 SCRAP</span>
+              <span class="action-text">UPGRADE</span>
+            </button>
+          </div>
+
+          <!-- 5. Thrusters -->
+          <div class="upgrade-card" data-tree="thruster">
+            <div class="up-card-icon">🔥</div>
+            <div class="up-card-info">
+              <div class="up-card-header">
+                <h4>OVERDRIVE THRUSTERS</h4>
+                <span class="up-card-level" id="up-lvl-thruster">LVL 1 / 5</span>
+              </div>
+              <p id="up-desc-thruster">Ion afterburners for high speed maneuvers and evading fire.</p>
+              <div class="up-progress-bar"><div class="up-bar-fill" id="up-fill-thruster" style="width: 20%;"></div></div>
+            </div>
+            <button class="btn-upgrade" id="btn-up-thruster" data-tree="thruster">
+              <span class="cost-text" id="up-cost-thruster">110 SCRAP</span>
+              <span class="action-text">UPGRADE</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <footer class="hangar-footer">
+        <button id="btn-hangar-back" class="btn-cyber btn-ghost">⬅ BACK TO MENU</button>
+        <button id="btn-hangar-launch" class="btn-cyber btn-primary">🚀 LAUNCH TO COMBAT</button>
+      </footer>
+    </div>
+  </section>
+
+  <!-- 3. CONTROLS & MANUAL MODAL -->
+  <div id="modal-controls" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>PILOT COMBAT MANUAL</h3>
+        <button class="modal-close-btn" data-close="modal-controls">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="controls-grid">
+          <div class="ctrl-row">
+            <span class="ctrl-keys">W, A, S, D / ARROWS</span>
+            <span class="ctrl-desc">Maneuver Starfighter (Up, Left, Down, Right)</span>
+          </div>
+          <div class="ctrl-row">
+            <span class="ctrl-keys">LEFT MOUSE / SPACEBAR</span>
+            <span class="ctrl-desc">Fire Primary Plasma Cannons (Hold to auto-fire)</span>
+          </div>
+          <div class="ctrl-row">
+            <span class="ctrl-keys">SHIFT / RIGHT MOUSE</span>
+            <span class="ctrl-desc">Afterburner Speed Boost (Consumes energy)</span>
+          </div>
+          <div class="ctrl-row">
+            <span class="ctrl-keys">F KEY</span>
+            <span class="ctrl-desc">Launch Homing Swarm Missiles</span>
+          </div>
+          <div class="ctrl-row">
+            <span class="ctrl-keys">Q / E KEY</span>
+            <span class="ctrl-desc">Trigger EMP Nova Bomb (Destroys all incoming shots)</span>
+          </div>
+          <div class="ctrl-row">
+            <span class="ctrl-keys">P / ESC</span>
+            <span class="ctrl-desc">Pause / Tactical Command</span>
+          </div>
+          <div class="ctrl-row">
+            <span class="ctrl-keys">TOUCH CONTROLS</span>
+            <span class="ctrl-desc">Virtual Joystick on Left + Fire Buttons on Right for touch screens</span>
+          </div>
+        </div>
+
+        <div class="manual-tips">
+          <h4>💡 TACTICAL TIPS:</h4>
+          <ul>
+            <li><strong>Shield Mechanics:</strong> Shields absorb all laser blasts before your hull takes damage and recharge automatically after 3 seconds of avoiding hits.</li>
+            <li><strong>Scrap Salvage:</strong> Collect glowing crystal orbs dropped by destroyed enemies to upgrade your weapons in the Hangar.</li>
+            <li><strong>Boss Battles:</strong> Target the wing turrets of the Apex Dreadnought before targeting the core generator!</li>
+          </ul>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cyber btn-primary" data-close="modal-controls">ROGER THAT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. SETTINGS MODAL -->
+  <div id="modal-settings" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>SYSTEM SETTINGS</h3>
+        <button class="modal-close-btn" data-close="modal-settings">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-item">
+          <label for="setting-sfx">SOUND EFFECTS (SFX)</label>
+          <input type="range" id="setting-sfx" min="0" max="100" value="80">
+        </div>
+        <div class="setting-item">
+          <label for="setting-music">SYNTHESIZER MUSIC</label>
+          <input type="range" id="setting-music" min="0" max="100" value="65">
+        </div>
+        <div class="setting-item">
+          <label for="setting-shake">SCREEN VIBRATION / SHAKE</label>
+          <input type="checkbox" id="setting-shake" checked>
+        </div>
+        <div class="setting-item danger-zone">
+          <label>DATA RESET</label>
+          <button id="btn-reset-save" class="btn-danger">RESET SAVED UPGRADES & SCORE</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cyber btn-primary" data-close="modal-settings">SAVE & CLOSE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. PAUSE MODAL -->
+  <div id="modal-pause" class="modal-overlay hidden">
+    <div class="modal-card pause-card">
+      <h2>MISSION SUSPENDED</h2>
+      <p>Tactical pause active. Starfighter systems on standby.</p>
+      <div class="pause-actions">
+        <button id="btn-resume" class="btn-cyber btn-primary">RESUME MISSION</button>
+        <button id="btn-pause-hangar" class="btn-cyber btn-secondary">RETURN TO HANGAR</button>
+        <button id="btn-pause-menu" class="btn-cyber btn-ghost">ABORT TO MAIN MENU</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. GAME OVER SCREEN -->
+  <section id="screen-game-over" class="screen-overlay hidden">
+    <div class="modal-card end-card">
+      <div class="end-icon text-red">☠️</div>
+      <h2 class="text-red">STARFIGHTER DESTROYED</h2>
+      <p class="end-subtitle">Vessel succumbed to enemy bombardment in deep space.</p>
+
+      <div class="end-stats-grid">
+        <div class="stat-pill">
+          <span>FINAL SCORE</span>
+          <strong id="go-score">000,000</strong>
+        </div>
+        <div class="stat-pill">
+          <span>SECTOR WAVE REACHED</span>
+          <strong id="go-wave">Wave 1</strong>
+        </div>
+        <div class="stat-pill">
+          <span>ENEMIES PURGED</span>
+          <strong id="go-kills">0</strong>
+        </div>
+        <div class="stat-pill">
+          <span>SCRAP SECURED</span>
+          <strong id="go-scrap">+0</strong>
+        </div>
+      </div>
+
+      <div class="end-actions">
+        <button id="btn-retry-mission" class="btn-cyber btn-primary">REDEPLOY FIGHTER</button>
+        <button id="btn-go-hangar" class="btn-cyber btn-secondary">UPGRADE IN HANGAR</button>
+        <button id="btn-go-menu" class="btn-cyber btn-ghost">FLEET COMMAND</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. VICTORY / SECTOR CLEARED SCREEN -->
+  <section id="screen-victory" class="screen-overlay hidden">
+    <div class="modal-card end-card victory-card">
+      <div class="end-icon text-gold">🏆</div>
+      <h2 class="text-gold">SECTOR LIBERATED</h2>
+      <p class="end-subtitle">The Apex Dreadnought has been eradicated! Starfleet honors your valor.</p>
+
+      <div class="end-stats-grid">
+        <div class="stat-pill">
+          <span>MISSION SCORE</span>
+          <strong id="vic-score">000,000</strong>
+        </div>
+        <div class="stat-pill">
+          <span>PILOT RANK</span>
+          <strong class="text-gold" id="vic-rank">ACE COMMANDER</strong>
+        </div>
+        <div class="stat-pill">
+          <span>TOTAL SCRAP BOUNTY</span>
+          <strong class="text-green" id="vic-scrap">+500</strong>
+        </div>
+        <div class="stat-pill">
+          <span>HIGH SCORE</span>
+          <strong id="vic-high-score">000,000</strong>
+        </div>
+      </div>
+
+      <div class="end-actions">
+        <button id="btn-vic-next" class="btn-cyber btn-primary">NEXT SECTOR (ENDLESS)</button>
+        <button id="btn-vic-hangar" class="btn-cyber btn-secondary">ENTER HANGAR</button>
+        <button id="btn-vic-menu" class="btn-cyber btn-ghost">MAIN MENU</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Game Logic Engine -->
+  <script src="game.js"></script>
+</body>
+</html>
